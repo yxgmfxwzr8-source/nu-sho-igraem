@@ -1,0 +1,13 @@
+{
+  "name": "nu-sho-igraem",
+  "version": "1.0.0",
+  "description": "Онлайн игра для друзей",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.15.1"
+  }
+}
