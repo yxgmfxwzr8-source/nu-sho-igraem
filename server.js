@@ -1,5 +1,5 @@
- const express = require("express");
 const path = require("path");
+const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 
@@ -7,73 +7,73 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const fs = require("fs");
+// раздача статики
+app.use(express.static(path.join(__dirname, "public")));
 
-function pickPublicDir() {
-  const a = path.join(__dirname, "public");
-  const b = path.join(__dirname, "public", "public");
+// чтобы / всегда открывало index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
-  const hasA = fs.existsSync(path.join(a, "index.html"));
-  const hasB = fs.existsSync(path.join(b, "index.html"));
+const rooms = {}; // { CODE: { players: [{name, ws}], scores: {} } }
 
-  // если index.html лежит в public/ — берём её
-  if (hasA) return a;
-
-  // если index.html лежит в public/public/ — берём её
-  if (hasB) return b;
-
-  // иначе просто возвращаем public/ (хотя это будет сигнал, что структура сломана)
-  return a;
+function makeCode() {
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-const PUBLIC_DIR = pickPublicDir();
-console.log("✅ Static folder:", PUBLIC_DIR);
+function broadcast(roomId, data) {
+  const room = rooms[roomId];
+  if (!room) return;
+  room.players.forEach(p => {
+    if (p.ws.readyState === WebSocket.OPEN) {
+      p.ws.send(JSON.stringify(data));
+    }
+  });
+}
 
-app.use(express.static(PUBLIC_DIR));
+wss.on("connection", (ws) => {
+  ws.on("message", (raw) => {
+    let data;
+    try { data = JSON.parse(raw); } catch { return; }
 
-const rooms = {};
-
-wss.on("connection", ws => {
-  ws.on("message", msg => {
-    const data = JSON.parse(msg);
-
-    // СОЗДАТЬ КОМНАТУ
+    // 1) создать комнату
     if (data.type === "createRoom") {
-      const roomId = Math.random().toString(36).substring(2, 6);
-      rooms[roomId] = [data.name];
-
-      ws.send(
-        JSON.stringify({
-          type: "roomCreated",
-          roomId
-        })
-      );
+      const roomId = makeCode();
+      rooms[roomId] = { players: [], scores: {} };
+      ws.send(JSON.stringify({ type: "roomCreated", roomId }));
+      return;
     }
 
-    // ВОЙТИ В КОМНАТУ
+    // 2) войти в комнату
     if (data.type === "joinRoom") {
-      if (!rooms[data.roomId]) {
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            text: "Комната не найдена"
-          })
-        );
+      const roomId = (data.roomId  "").toUpperCase();
+      const name = (data.name  "").trim();
+
+      if (!rooms[roomId]) {
+        ws.send(JSON.stringify({ type: "error", text: "Комната не найдена" }));
+        return;
+      }
+      if (!name) {
+        ws.send(JSON.stringify({ type: "error", text: "Введите ник" }));
         return;
       }
 
-      rooms[data.roomId].push(data.name);
+      rooms[roomId].players.push({ name, ws });
+      rooms[roomId].scores[name] = rooms[roomId].scores[name] ?? 0;
 
-      ws.send(
-        JSON.stringify({
-          type: "roomJoined",
-          roomId: data.roomId
-        })
-      );
+      ws.send(JSON.stringify({ type: "roomJoined", roomId }));
+      broadcast(roomId, {
+        type: "players",
+        players: rooms[roomId].players.map(p => p.name)
+      });
+      return;
     }
+  });
+
+  ws.on("close", () => {
+    // упрощенно: не чистим комнаты сейчас
   });
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log("Server running");
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log("Server running on", PORT));
