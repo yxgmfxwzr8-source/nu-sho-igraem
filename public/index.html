@@ -1,27 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ну шо, играем?</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="box">
+    <h1>Ну шо, играем?</h1>
 
-<h1>Ну шо, играем?</h1>
+    <label>Твой ник</label>
+    <input id="name" placeholder="Например: Дарина" />
 
-<input id="name" placeholder="Твой ник">
-<br><br>
+    <div class="row">
+      <button id="createBtn">Создать комнату</button>
+    </div>
 
-<button onclick="createRoom()">Создать комнату</button>
-<br><br>
+    <label>Код комнаты</label>
+    <input id="code" placeholder="Например: A1B2" />
 
-<input id="room" placeholder="Код комнаты">
-<br><br>
+    <div class="row">
+      <button id="joinBtn">Войти</button>
+    </div>
 
-<button onclick="joinRoom()">Войти</button>
+    <p id="status"></p>
+  </div>
 
-<!-- ВАЖНО: подключаем JS -->
-<script src="/client.js"defer></script>
-
+  <script src="client.js"></script>
 </body>
 </html>
