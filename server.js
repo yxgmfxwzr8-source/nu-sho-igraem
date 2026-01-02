@@ -46,7 +46,7 @@ wss.on("connection", (ws) => {
 
     // 2) войти в комнату
     if (data.type === "joinRoom") {
-      const roomId = String (data.roomId = "").toUpperCase();
+      const roomId = (data.roomId || "").toUpperCase();
       const name = (data.name  "").trim();
 
       if (!rooms[roomId]) {
