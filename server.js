@@ -7,7 +7,29 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.static(path.join(__dirname, "public")));
+const fs = require("fs");
+
+function pickPublicDir() {
+  const a = path.join(__dirname, "public");
+  const b = path.join(__dirname, "public", "public");
+
+  const hasA = fs.existsSync(path.join(a, "index.html"));
+  const hasB = fs.existsSync(path.join(b, "index.html"));
+
+  // если index.html лежит в public/ — берём её
+  if (hasA) return a;
+
+  // если index.html лежит в public/public/ — берём её
+  if (hasB) return b;
+
+  // иначе просто возвращаем public/ (хотя это будет сигнал, что структура сломана)
+  return a;
+}
+
+const PUBLIC_DIR = pickPublicDir();
+console.log("✅ Static folder:", PUBLIC_DIR);
+
+app.use(express.static(PUBLIC_DIR));
 
 const rooms = {};
 
