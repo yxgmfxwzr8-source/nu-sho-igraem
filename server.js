@@ -1,28 +1,18 @@
-const express = require("express");
 const path = require("path");
+const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 
 const app = express();
-
-// раздача статики
-app.use(express.static(path.join(__dirname, "public")));
-
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// roomId -> { players: [] }
-const rooms = new Map();
+app.use(express.static(path.join(__dirname, "public")));
 
-function makeRoomId() {
-  return Math.random().toString(36).slice(2, 6).toUpperCase();
-}
+const rooms = {}; // { CODE: { players: [{name}], } }
 
-function broadcast(roomId, payload) {
-  const msg = JSON.stringify(payload);
-  wss.clients.forEach((c) => {
-    if (c.readyState === WebSocket.OPEN && c.roomId === roomId) c.send(msg);
-  });
+function makeCode() {
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
 wss.on("connection", (ws) => {
@@ -30,67 +20,54 @@ wss.on("connection", (ws) => {
     let data;
     try {
       data = JSON.parse(raw);
-    } catch {
+    } catch (e) {
+      ws.send(JSON.stringify({ type: "error", text: "Неверный формат сообщения" }));
       return;
     }
 
-    // CREATE ROOM
-    if (data.type === "createRoom") {
-      const name = String(data.name  "").trim().slice(0, 20)  "Игрок";
+    // Нормализация
+    const type = String(data.type  "");
+    const name = String(data.name  "Игрок").trim().slice(0, 20)  "Игрок";
+    const roomId = String(data.roomId  "").trim().toUpperCase();
 
-      let roomId;
-      do {
-        roomId = makeRoomId();
-      } while (rooms.has(roomId));
+    // СОЗДАТЬ КОМНАТУ
+    if (type === "createRoom") {
+      let code = makeCode();
+      while (rooms[code]) code = makeCode();
 
-      rooms.set(roomId, { players: [name] });
+      rooms[code] = { players: [name] };
 
-      ws.roomId = roomId;
-      ws.name = name;
-
-      ws.send(JSON.stringify({ type: "roomCreated", roomId }));
+      ws.send(JSON.stringify({ type: "roomCreated", roomId: code }));
       return;
     }
 
-    // JOIN ROOM
-    if (data.type === "joinRoom") {
-      const roomId = String(data.roomId  "").trim().toUpperCase();
-      const name = String(data.name  "").trim().slice(0, 20)  "Игрок";
-
-      const room = rooms.get(roomId);
-      if (!room) {
+    // ВОЙТИ В КОМНАТУ
+    if (type === "joinRoom") {
+      if (!rooms[roomId]) {
         ws.send(JSON.stringify({ type: "error", text: "Комната не найдена" }));
         return;
       }
 
-      if (room.players.length >= 10) {
-        ws.send(JSON.stringify({ type: "error", text: "Комната заполнена" }));
+      if (rooms[roomId].players.length >= 10) {
+        ws.send(JSON.stringify({ type: "error", text: "Комната уже заполнена" }));
         return;
       }
 
-      room.players.push(name);
+      rooms[roomId].players.push(name);
 
-      ws.roomId = roomId;
-      ws.name = name;
-
-      ws.send(JSON.stringify({ type: "roomJoined", roomId, players: room.players }));
-      broadcast(roomId, { type: "players", players: room.players });
+      ws.send(
+        JSON.stringify({
+          type: "roomJoined",
+          roomId: roomId,
+          players: rooms[roomId].players,
+        })
+      );
       return;
     }
-  });
 
-  ws.on("close", () => {
-    if (!ws.roomId) return;
-    const room = rooms.get(ws.roomId);
-    if (!room) return;
-
-    room.players = room.players.filter((p) => p !== ws.name);
-
-    if (room.players.length === 0) rooms.delete(ws.roomId);
-    else broadcast(ws.roomId, { type: "players", players: room.players });
+    ws.send(JSON.stringify({ type: "error", text: "Неизвестная команда" }));
   });
 });
 
-server.listen(process.env.PORT  3000, () => {
-  console.log("Server running");
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log("Server running on", PORT));
