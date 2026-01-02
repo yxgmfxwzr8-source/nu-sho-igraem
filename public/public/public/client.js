@@ -3,8 +3,8 @@ let pendingAction = null;
 
 function connect() {
   ws = new WebSocket(
-    (location.protocol === "https:" ? "wss://" : "ws://") + location.host
-  );
+  (location.protocol === "https:" ? "wss://" : "ws://") + location.host
+);
 
   ws.onopen = () => {
     if (pendingAction) {
