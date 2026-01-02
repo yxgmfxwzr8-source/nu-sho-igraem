@@ -1,57 +1,47 @@
-const express = require("express");
-const path = require("path");
-const http = require("http");
-const WebSocket = require("ws");
+const statusEl = document.getElementById("status");
+const nameEl = document.getElementById("name");
+const codeEl = document.getElementById("code");
+const createBtn = document.getElementById("createBtn");
+const joinBtn = document.getElementById("joinBtn");
 
-const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+function setStatus(text) {
+  statusEl.textContent = text;
+}
 
-app.use(express.static(path.join(__dirname, "public")));
+const ws = new WebSocket(
+  (location.protocol === "https:" ? "wss://" : "ws://") + location.host
+);
 
-const rooms = {};
+ws.onopen = () => setStatus("Подключено ✅");
+ws.onerror = () => setStatus("Ошибка подключения ❌");
+ws.onclose = () => setStatus("Соединение закрыто ❌");
 
-wss.on("connection", ws => {
-  ws.on("message", msg => {
-    const data = JSON.parse(msg);
+ws.onmessage = (e) => {
+  const data = JSON.parse(e.data);
 
-    // СОЗДАТЬ КОМНАТУ
-    if (data.type === "createRoom") {
-      const roomId = Math.random().toString(36).substring(2, 6);
-      rooms[roomId] = [data.name];
+  if (data.type === "roomCreated") {
+    setStatus("Комната создана: " + data.roomId);
+    location.href = "/room.html?room=" + data.roomId + "&name=" + encodeURIComponent(nameEl.value.trim());
+  }
 
-      ws.send(
-        JSON.stringify({
-          type: "roomCreated",
-          roomId
-        })
-      );
-    }
+  if (data.type === "roomJoined") {
+    setStatus("Вошли в комнату: " + data.roomId);
+    location.href = "/room.html?room=" + data.roomId + "&name=" + encodeURIComponent(nameEl.value.trim());
+  }
 
-    // ВОЙТИ В КОМНАТУ
-    if (data.type === "joinRoom") {
-      if (!rooms[data.roomId]) {
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            text: "Комната не найдена"
-          })
-        );
-        return;
-      }
+  if (data.type === "error") {
+    alert(data.text);
+  }
+};
 
-      rooms[data.roomId].push(data.name);
+createBtn.onclick = () => {
+  if (ws.readyState !== 1) return alert("WebSocket ещё не подключился. Подожди 2 секунды.");
+  ws.send(JSON.stringify({ type: "createRoom" }));
+};
 
-      ws.send(
-        JSON.stringify({
-          type: "roomJoined",
-          roomId: data.roomId
-        })
-      );
-    }
-  });
-});
-
-server.listen(process.env.PORT || 3000, () => { 
-console.log("Server running");
-{);
+joinBtn.onclick = () => {
+  if (ws.readyState !== 1) return alert("WebSocket ещё не подключился. Подожди 2 секунды.");
+  const name = nameEl.value.trim();
+  const roomId = codeEl.value.trim().toUpperCase();
+  ws.send(JSON.stringify({ type: "joinRoom", roomId, name }));
+};
